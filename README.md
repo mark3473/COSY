@@ -1,130 +1,165 @@
-# COSY 
+# COSY
 
-## fastapi를 로컬에서 돌리기 위한 환경 세팅
-1. Python 3.10.x 설치
-- 그 이상은 paddle ocr이 안됨
-- 기존 버전이 3.10.x 이상이면 삭제할 필요 없이 추가로 3.10.x 버전 다운로드
-- 이후 py -3.10 --version으로 버전 체크하고 다음 스텝으로 넘어가기
-2. fastapi 디렉토리에서 cmd 열기
-3. py -3.10 -m venv .venv → 가상환경 생성
-4. .venv\Scripts\activate → 가상환경 실행. 실행 후 프롬프트에 (.venv)가 붙었으면 성공적으로 가상환경에 접속한 것
-5. python -m pip install --upgrade pip
-6. pip install -r requirements.txt
-- 상당히 오래 걸림
-7. python -m app.scripts.ingest_regulations → 해야 rag에 쓰일 벡터db 생성됨
-8. uvicorn app.main:app --host 127.0.0.1 --port 8000
-9. 인터넷 주소창에 http://127.0.0.1:8000/docs으로 접속하면 api 확인 가능
-10. .env는 gitignore에 명시된 파일로 직접 생성 → 필요 시 담당자에게 문의해주세요
+> AI 기반 화장품 수출 규제 적합성 검토 서비스  
+> 제품의 전성분과 라벨/마케팅 문구를 입력하면 국가별 규제 문서를 기반으로 위험도를 분석하고, 수정 제안 및 PDF 보고서를 제공합니다.
 
----
-## redis를 로컬에 돌리기 위한 환경 세팅 (Docker 사용)
+<br />
 
-### 1. 사전 준비 사항
+## 1. 프로젝트 소개
 
-#### Docker 설치 확인
+COSY는 화장품을 해외 시장에 수출할 때 필요한 성분 규제와 표시·광고 규제 검토 과정을 자동화하기 위한 서비스입니다.  
+국가별 규제 문서는 형식과 기준이 다르고, 기업 담당자가 성분표와 마케팅 문구를 직접 대조하는 데 많은 시간이 소요됩니다.
 
-Redis는 Docker 컨테이너로 실행합니다.  
-먼저 Docker가 설치되어 있는지 확인해주세요.  
-  
-터미널(명령 프롬프트)에서 아래 명령어를 실행합니다.  
+COSY는 다음 과정을 통해 규제 검토를 지원합니다.
 
-```bash
-docker --version
+1. 국가별 화장품 규제 문서 수집 및 벡터 DB 저장
+2. 사용자가 입력한 전성분 또는 마케팅 문구 분석
+3. Hybrid Retrieval 기반 관련 규정 검색
+4. LLM 기반 규제 위반 가능성 판단
+5. 위험도, 규제 근거, 권장 조치, 수정 문구 제공
+6. 분석 결과 PDF 보고서 다운로드
 
-```
-만약 버전 정보가 뜬다면 이미 깔려있는 것, 그런 커맨드 없다고 하면 새로 설치해야함  
-Docker 설치 후에는 반드시 Docker Desktop을 실행한 상태여야 함  
+<br />
 
+## 2. 주요 기능
 
-### 2. Redis 컨테이너 실행
-아래 명령어 한 줄만 실행하면 Redis가 로컬에서 실행됩니다.  
-```bash
-docker run -d --name local-redis -p 6379:6379 redis:7
-```
-참고 설명 (이해하지 않아도 됩니다)  
-  
--d : 백그라운드 실행  
---name local-redis : 컨테이너 이름  
-6379 : Redis 기본 포트  
-redis:7 : Redis 버전 7  
+| 구분 | 기능 |
+| --- | --- |
+| 회원/인증 | 회원가입, 로그인, JWT 기반 인증, 토큰 재발급, 로그아웃 |
+| 제품 관리 | 회사 단위 제품 등록, 조회, 수정, 삭제, 이미지 업로드 |
+| 전성분 검토 | 국가별 금지/제한/조건부 허용 성분 검토 |
+| 문구 검토 | 라벨·마케팅 문구의 오인 표현, 금지 표현, 주의 표현 검토 |
+| OCR | 제품 이미지에서 텍스트 추출 |
+| RAG 검색 | Chroma Vector DB + BM25 기반 Hybrid Retrieval |
+| 보고서 | 검토 결과 PDF 생성 및 ZIP 일괄 다운로드 |
+| 배포 | Docker, Nginx, AWS EC2/ECR/S3/CloudFront, GitHub Actions 기반 CI/CD |
 
+<br />
 
-### 3. Redis 실행 상태 확인
-아래 명령어를 실행합니다.  
-```bash
-docker ps
+## 3. 기술 스택
 
-```
+### Frontend
 
-아래와 비슷한 출력이 보이면 정상입니다.
-```
-CONTAINER ID   IMAGE     NAME          PORTS
-xxxxxx         redis:7   local-redis   0.0.0.0:6379->6379/tcp
-```
+- React 19
+- Vite
+- Axios
+- Lucide React
 
-### 4. Redis 접속 테스트 (선택)
-Redis가 실제로 동작하는지 확인하고 싶다면 아래 명령어를 실행합니다.  
-```bash
-docker exec -it local-redis redis-cli
-```
-Redis 콘솔에서 다음을 입력합니다.  
-```bash
-PING
-```
-아래처럼 나오면 정상입니다.  
+### Backend
 
-```
-PONG
-```
-종료하려면:  
-``` bash
-exit
-```
+- Java 17
+- Spring Boot 4.0.1
+- Spring Security
+- Spring Data JPA
+- MySQL
+- Redis
+- JWT
+- AWS S3 SDK
 
-### 5. 애플리케이션에서 Redis 접속 정보
-애플리케이션에서는 아래 정보로 Redis에 접속하면 됩니다.  
-```bash
-HOST: localhost
-PORT: 6379
-PASSWORD: 없음
-```
-예시 환경 변수:  
-REDIS_HOST=localhost  
-REDIS_PORT=6379  
+### AI Server
 
-### 6. Redis 컨테이너 제어
+- Python 3.10
+- FastAPI
+- LangChain
+- Chroma DB
+- BM25 Retriever
+- OpenAI API
+- PaddleOCR
+- fpdf2
 
-Redis 중지  
-```bash
-docker stop local-redis
-```
+### Infra / DevOps
 
-Redis 다시 시작  
-``` bash
-docker start local-redis
+- Docker
+- Nginx
+- GitHub Actions
+- AWS EC2
+- AWS ECR
+- AWS S3
+- AWS CloudFront
+- AWS ALB
+
+<br />
+
+## 4. 시스템 아키텍처
+
+```mermaid
+flowchart LR
+    User[User] --> CF[CloudFront]
+    CF --> FE[S3 Static Frontend]
+    User --> ALB[Application Load Balancer]
+    ALB --> Nginx[Nginx Reverse Proxy]
+
+    Nginx -->|/api/*| Spring[Spring Boot API Server]
+    Nginx -->|/v1/*| FastAPI[FastAPI AI Server]
+
+    Spring --> MySQL[(MySQL / RDS)]
+    Spring --> Redis[(Redis)]
+    Spring --> S3[(S3 Image Storage)]
+
+    FastAPI --> Chroma[(Chroma Vector DB)]
+    FastAPI --> OpenAI[OpenAI API]
+    FastAPI --> OCR[PaddleOCR]
 ```
 
-Redis 컨테이너 삭제 (완전히 제거)  
-``` bash
-docker rm -f local-redis
+<br />
+
+## 5. 서버 분리 구조
+
+COSY는 백엔드를 Spring Boot 서버와 FastAPI 서버로 분리했습니다.
+
+| 서버 | 역할 |
+| --- | --- |
+| Spring Boot | 인증, 회원, 회사, 제품, 로그 등 일반 비즈니스 API 처리 |
+| FastAPI | OCR, RAG 검색, LLM 분석, 보고서 생성 등 AI 기능 처리 |
+| Nginx | `/api/*` 요청은 Spring Boot로, `/v1/*` 요청은 FastAPI로 라우팅 |
+
+<br />
+
+## 6. RAG 구조
+
+COSY의 규제 검토는 단순 LLM 응답이 아니라, 국가별 규제 문서를 검색한 뒤 검색 결과를 근거로 판단하는 RAG 구조로 동작합니다.
+
+```mermaid
+flowchart TD
+    A[Regulation PDF/TXT] --> B[Document Loader]
+    B --> C[Chunking]
+    C --> D[Metadata 추가]
+    D --> E[Embedding]
+    E --> F[Chroma Vector DB]
+
+    G[User Input] --> H[Query 생성]
+    H --> I[Hybrid Retriever]
+    F --> I
+    I --> J[Relevant Context]
+    J --> K[LLM Analysis]
+    K --> L[Risk / Reason / Action]
 ```
 
-삭제 후 다시 실행하려면 2번 단계 명령어를 다시 실행하면 됩니다.  
+### 문서 저장 방식
 
-7. 자주 발생하는 문제
-포트 6379가 이미 사용 중이라는 오류가 나는 경우
-이미 다른 Redis나 서비스가 해당 포트를 사용 중일 수 있습니다.  
-이 경우 포트를 변경해서 실행합니다.  
-``` bash
-docker run -d \
-  --name local-redis \
-  -p 6380:6379 \
-  redis:7
-```
+규제 문서는 국가와 도메인 정보를 metadata로 함께 저장합니다.
 
-이 경우 애플리케이션에서도 포트를 6380으로 맞춰야 합니다.  
-```
-REDIS_PORT=6380
-```
+| Metadata | 설명 |
+| --- | --- |
+| `country` | JP, US, EU, CN 등 검토 국가 |
+| `domain` | ingredients, labeling 등 규제 영역 |
+| `title` | 원본 문서명 |
+| `source` | 원본 파일 경로 |
 
+이를 통해 사용자가 특정 국가와 검토 영역을 선택하면 해당 조건에 맞는 문서만 검색하도록 범위를 제한했습니다.
 
+<br />
+
+## 7. Hybrid Retrieval 적용
+
+초기에는 벡터 유사도 검색만 사용했지만, 화장품 성분명은 의미적 유사도보다 정확한 키워드 매칭이 중요한 경우가 많았습니다.  
+예를 들어 특정 성분명이 규제 목록에 존재하는지 확인해야 하는 상황에서는 벡터 검색만으로는 관련 문서를 놓칠 수 있었습니다.
+
+이를 개선하기 위해 벡터 검색과 BM25 키워드 검색을 결합한 Hybrid Retrieval을 적용했습니다.
+
+### 검색 전략
+
+| 검토 유형 | 검색 전략 |
+| --- | --- |
+| 전성분 검토 | 성분명 정확도가 중요하므로 BM25 비중을 높게 적용 |
+| 라벨/문구 검토 | 표현의 의미와 문맥이 중요하므로 벡터 검색 비중을 높게 적용 |
