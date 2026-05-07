@@ -1,0 +1,48 @@
+name: Deploy Nginx
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "nginx/**"
+      - "docker-compose.yml"
+      - ".github/workflows/deploy-nginx.yml"
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPO_NGINX: cosy/nginx
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Nginx image
+        run: |
+          ECR_REGISTRY=${{ steps.ecr.outputs.registry }}
+          docker build -t $ECR_REGISTRY/${{ env.ECR_REPO_NGINX }}:latest ./nginx
+          docker push $ECR_REGISTRY/${{ env.ECR_REPO_NGINX }}:latest
+
+      - name: Deploy Nginx on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          script: |
+            cd /opt/cosy
+            aws ecr get-login-password --region ap-northeast-2 | docker login --username AWS --password-stdin ${{ steps.ecr.outputs.registry }}
+            docker compose pull nginx
+            docker compose up -d nginx
+            docker image prune -f
